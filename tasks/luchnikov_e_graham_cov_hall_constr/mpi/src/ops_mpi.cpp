@@ -129,7 +129,7 @@ std::vector<Point> LuchnikovEGrahamConvexHullMPI::GrahamScan(const std::vector<P
 }
 
 std::vector<Point> LuchnikovEGrahamConvexHullMPI::MergeHulls(const std::vector<Point> &hull_left,
-                                                            const std::vector<Point> &hull_right) {
+                                                             const std::vector<Point> &hull_right) {
   if (hull_left.empty()) {
     return hull_right;
   }
@@ -160,7 +160,7 @@ int LuchnikovEGrahamConvexHullMPI::CalculateOptimalActiveProcs(int points_count,
 }
 
 std::vector<Point> LuchnikovEGrahamConvexHullMPI::PrepareAndDistributeData(int world_rank, int world_size,
-                                                                          int &active_procs_out) {
+                                                                           int &active_procs_out) {
   int total_points = 0;
   if (world_rank == 0) {
     total_points = static_cast<int>(GetInput().size());
@@ -225,8 +225,8 @@ std::vector<Point> LuchnikovEGrahamConvexHullMPI::PrepareAndDistributeData(int w
 }
 
 std::vector<Point> LuchnikovEGrahamConvexHullMPI::MergeHullsBinaryTree(int world_rank,
-                                                                      const std::vector<Point> &local_hull,
-                                                                      int active_procs) {
+                                                                       const std::vector<Point> &local_hull,
+                                                                       int active_procs) {
   std::vector<Point> current_hull = local_hull;
 
   for (int step = 1; step < active_procs; step <<= 1) {
@@ -271,7 +271,7 @@ std::vector<Point> LuchnikovEGrahamConvexHullMPI::MergeHullsBinaryTree(int world
 }
 
 std::vector<Point> LuchnikovEGrahamConvexHullMPI::BroadcastFinalResult(int world_rank,
-                                                                      const std::vector<Point> &root_hull) {
+                                                                       const std::vector<Point> &root_hull) {
   int hull_size = 0;
   if (world_rank == 0) {
     hull_size = static_cast<int>(root_hull.size());
