@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <cstddef>
+#include <limits>
 #include <vector>
 
 #include "luchnikov_e_max_val_in_col_of_mat/common/include/common.hpp"
@@ -11,11 +13,10 @@ namespace luchnikov_e_max_val_in_col_of_mat {
 
 class LuchnilkovEMaxValInColOfMatRunPerfTestProcesses : public ppc::util::BaseRunPerfTests<InType, OutType> {
   const int kMatrixSize_ = 100;
-  InType input_data_{};
-  OutType expected_output_{};
+  InType input_data_;
+  OutType expected_output_;
 
   void SetUp() override {
-    // Генерируем большую матрицу для теста производительности
     input_data_ = GenerateLargeMatrix(kMatrixSize_);
     expected_output_ = CalculateExpectedResult(input_data_);
   }
@@ -29,34 +30,30 @@ class LuchnilkovEMaxValInColOfMatRunPerfTestProcesses : public ppc::util::BaseRu
   }
 
  private:
-  InType GenerateLargeMatrix(int size) {
+  static InType GenerateLargeMatrix(int size) {
     InType matrix(size, std::vector<int>(size));
 
-    // Детерминированная генерация без случайных чисел
     for (int i = 0; i < size; ++i) {
       for (int j = 0; j < size; ++j) {
-        // Используем детерминированную формулу на основе индексов
-        matrix[i][j] = (i * 19 + j * 23) % 10000 + 1;  // От 1 до 10000
+        matrix[i][j] = (((i * 19) + (j * 23)) % 10000) + 1;
       }
     }
 
     return matrix;
   }
 
-  OutType CalculateExpectedResult(const InType &matrix) {
+  static OutType CalculateExpectedResult(const InType &matrix) {
     if (matrix.empty()) {
       return {};
     }
 
-    size_t rows = matrix.size();
-    size_t cols = matrix[0].size();
+    std::size_t rows = matrix.size();
+    std::size_t cols = matrix[0].size();
     OutType result(cols, std::numeric_limits<int>::min());
 
-    for (size_t j = 0; j < cols; ++j) {
-      for (size_t i = 0; i < rows; ++i) {
-        if (matrix[i][j] > result[j]) {
-          result[j] = matrix[i][j];
-        }
+    for (std::size_t j = 0; j < cols; ++j) {
+      for (std::size_t i = 0; i < rows; ++i) {
+        result[j] = std::max(matrix[i][j], result[j]);
       }
     }
 

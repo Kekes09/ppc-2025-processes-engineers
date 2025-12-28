@@ -1,21 +1,16 @@
 #include <gtest/gtest.h>
 
-#include <algorithm>
 #include <array>
 #include <cstddef>
-#include <cstdint>
-#include <numeric>
-#include <stdexcept>
+#include <limits>
 #include <string>
 #include <tuple>
-#include <utility>
 #include <vector>
 
 #include "luchnikov_e_max_val_in_col_of_mat/common/include/common.hpp"
 #include "luchnikov_e_max_val_in_col_of_mat/mpi/include/ops_mpi.hpp"
 #include "luchnikov_e_max_val_in_col_of_mat/seq/include/ops_seq.hpp"
 #include "util/include/func_test_util.hpp"
-#include "util/include/util.hpp"
 
 namespace luchnikov_e_max_val_in_col_of_mat {
 
@@ -27,14 +22,11 @@ class LuchnilkovEMaxValInColOfMatRunFuncTestsProcesses : public ppc::util::BaseR
 
  protected:
   void SetUp() override {
-    TestType params = std::get<static_cast<size_t>(ppc::util::GTestParamIndex::kTestParams)>(GetParam());
+    TestType params = std::get<static_cast<std::size_t>(ppc::util::GTestParamIndex::kTestParams)>(GetParam());
     int matrix_size = std::get<0>(params);
     std::string test_type = std::get<1>(params);
 
-    // Генерируем тестовую матрицу
     input_data_ = GenerateTestMatrix(matrix_size, test_type);
-
-    // Вычисляем ожидаемый результат
     expected_output_ = CalculateExpectedResult(input_data_);
   }
 
@@ -50,26 +42,25 @@ class LuchnilkovEMaxValInColOfMatRunFuncTestsProcesses : public ppc::util::BaseR
   InType input_data_;
   OutType expected_output_;
 
-  InType GenerateTestMatrix(int size, const std::string &test_type) {
+  static InType GenerateTestMatrix(int size, const std::string &test_type) {
     InType matrix(size, std::vector<int>(size));
 
     if (test_type == "random1") {
-      // Детерминированный "случайный" паттерн 1
       for (int i = 0; i < size; ++i) {
         for (int j = 0; j < size; ++j) {
-          matrix[i][j] = (i * 17 + j * 13) % 100;
+          matrix[i][j] = ((i * 17) + (j * 13)) % 100;
         }
       }
     } else if (test_type == "ascending") {
       for (int i = 0; i < size; ++i) {
         for (int j = 0; j < size; ++j) {
-          matrix[i][j] = i * size + j + 1;
+          matrix[i][j] = (i * size) + j + 1;
         }
       }
     } else if (test_type == "descending") {
       for (int i = 0; i < size; ++i) {
         for (int j = 0; j < size; ++j) {
-          matrix[i][j] = size * size - (i * size + j);
+          matrix[i][j] = (size * size) - ((i * size) + j);
         }
       }
     } else if (test_type == "constant") {
@@ -87,13 +78,13 @@ class LuchnilkovEMaxValInColOfMatRunFuncTestsProcesses : public ppc::util::BaseR
     } else if (test_type == "negative") {
       for (int i = 0; i < size; ++i) {
         for (int j = 0; j < size; ++j) {
-          matrix[i][j] = -((i * 17 + j * 13) % 100 + 1);
+          matrix[i][j] = -((((i * 17) + (j * 13)) % 100) + 1);
         }
       }
     } else if (test_type == "mixed") {
       for (int i = 0; i < size; ++i) {
         for (int j = 0; j < size; ++j) {
-          int val = (i * 17 + j * 13) % 201 - 100;  // От -100 до 100
+          int val = (((i * 17) + (j * 13)) % 201) - 100;
           matrix[i][j] = val;
         }
       }
@@ -103,7 +94,6 @@ class LuchnilkovEMaxValInColOfMatRunFuncTestsProcesses : public ppc::util::BaseR
           matrix[i][j] = 1;
         }
       }
-      // Помещаем максимальное значение в фиксированную позицию
       int max_row = size / 2;
       int max_col = size / 2;
       if (size > 0) {
@@ -112,20 +102,19 @@ class LuchnilkovEMaxValInColOfMatRunFuncTestsProcesses : public ppc::util::BaseR
     } else if (test_type == "first_col_max") {
       for (int i = 0; i < size; ++i) {
         for (int j = 0; j < size; ++j) {
-          matrix[i][j] = j + 1;  // Максимум в последнем столбце
+          matrix[i][j] = j + 1;
         }
       }
     } else if (test_type == "last_col_max") {
       for (int i = 0; i < size; ++i) {
         for (int j = 0; j < size; ++j) {
-          matrix[i][j] = size - j;  // Максимум в первом столбце
+          matrix[i][j] = size - j;  
         }
       }
     } else if (test_type == "random2") {
-      // Другой детерминированный "случайный" паттерн
       for (int i = 0; i < size; ++i) {
         for (int j = 0; j < size; ++j) {
-          matrix[i][j] = ((i + 1) * (j + 1) * 7) % 150;
+          matrix[i][j] = (((i + 1) * (j + 1) * 7)) % 150;
         }
       }
     }
@@ -133,20 +122,18 @@ class LuchnilkovEMaxValInColOfMatRunFuncTestsProcesses : public ppc::util::BaseR
     return matrix;
   }
 
-  OutType CalculateExpectedResult(const InType &matrix) {
+  static OutType CalculateExpectedResult(const InType &matrix) {
     if (matrix.empty()) {
       return {};
     }
 
-    size_t rows = matrix.size();
-    size_t cols = matrix[0].size();
+    std::size_t rows = matrix.size();
+    std::size_t cols = matrix[0].size();
     OutType result(cols, std::numeric_limits<int>::min());
 
-    for (size_t j = 0; j < cols; ++j) {
-      for (size_t i = 0; i < rows; ++i) {
-        if (matrix[i][j] > result[j]) {
-          result[j] = matrix[i][j];
-        }
+    for (std::size_t j = 0; j < cols; ++j) {
+      for (std::size_t i = 0; i < rows; ++i) {
+        result[j] = std::max(matrix[i][j], result[j]);
       }
     }
 
@@ -160,7 +147,6 @@ TEST_P(LuchnilkovEMaxValInColOfMatRunFuncTestsProcesses, MaxValInColTest) {
   ExecuteTest(GetParam());
 }
 
-// 10 различных тестовых случаев
 const std::array<TestType, 10> kTestParam = {std::make_tuple(3, "random1"),       std::make_tuple(5, "ascending"),
                                              std::make_tuple(7, "descending"),    std::make_tuple(4, "constant"),
                                              std::make_tuple(6, "diagonal"),      std::make_tuple(8, "negative"),
