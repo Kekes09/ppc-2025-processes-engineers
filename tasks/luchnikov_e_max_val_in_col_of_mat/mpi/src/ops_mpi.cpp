@@ -9,22 +9,21 @@
 
 namespace luchnikov_e_max_val_in_col_of_mat {
 
-LuchnilkovEMaxValInColOfMatMPI::LuchnilkovEMaxValInColOfMatMPI(const InType &in) 
-    : matrix_(in) {
+LuchnilkovEMaxValInColOfMatMPI::LuchnilkovEMaxValInColOfMatMPI(const InType &in) : matrix_(in) {
   SetTypeOfTask(GetStaticTypeOfTask());
   GetInput() = in;
   result_.clear();
 }
 
 bool LuchnilkovEMaxValInColOfMatMPI::ValidationImpl() {
-  const auto& matrix = GetInput();
+  const auto &matrix = GetInput();
 
   if (matrix.empty()) {
     return false;
   }
 
   std::size_t cols = matrix[0].size();
-  for (const auto& row : matrix) {
+  for (const auto &row : matrix) {
     if (row.size() != cols) {
       return false;
     }
@@ -34,7 +33,7 @@ bool LuchnilkovEMaxValInColOfMatMPI::ValidationImpl() {
 }
 
 bool LuchnilkovEMaxValInColOfMatMPI::PreProcessingImpl() {
-  const auto& matrix = GetInput();
+  const auto &matrix = GetInput();
 
   if (!matrix.empty()) {
     std::size_t cols = matrix[0].size();
@@ -45,7 +44,7 @@ bool LuchnilkovEMaxValInColOfMatMPI::PreProcessingImpl() {
 }
 
 bool LuchnilkovEMaxValInColOfMatMPI::RunImpl() {
-  const auto& matrix = GetInput();
+  const auto &matrix = GetInput();
 
   if (matrix.empty()) {
     return false;
@@ -83,7 +82,7 @@ bool LuchnilkovEMaxValInColOfMatMPI::RunImpl() {
     for (int proc = 1; proc < size; ++proc) {
       std::vector<int> other_max(cols);
       MPI_Recv(other_max.data(), cols, MPI_INT, proc, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      
+
       for (int j = 0; j < cols; ++j) {
         result_[j] = std::max(other_max[j], result_[j]);
       }
@@ -94,7 +93,7 @@ bool LuchnilkovEMaxValInColOfMatMPI::RunImpl() {
     }
   } else {
     MPI_Send(local_max.data(), cols, MPI_INT, 0, 0, MPI_COMM_WORLD);
-    
+
     result_.resize(cols);
     MPI_Recv(result_.data(), cols, MPI_INT, 0, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
   }
@@ -108,4 +107,4 @@ bool LuchnilkovEMaxValInColOfMatMPI::PostProcessingImpl() {
   return !result_.empty();
 }
 
-} // namespace luchnikov_e_max_val_in_col_of_mat
+}  // namespace luchnikov_e_max_val_in_col_of_mat

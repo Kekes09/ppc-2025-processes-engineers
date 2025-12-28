@@ -108,7 +108,7 @@ class LuchnilkovEMaxValInColOfMatRunFuncTestsProcesses : public ppc::util::BaseR
     } else if (test_type == "last_col_max") {
       for (int i = 0; i < size; ++i) {
         for (int j = 0; j < size; ++j) {
-          matrix[i][j] = size - j;  
+          matrix[i][j] = size - j;
         }
       }
     } else if (test_type == "random2") {

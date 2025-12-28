@@ -7,8 +7,7 @@
 
 namespace luchnikov_e_max_val_in_col_of_mat {
 
-LuchnilkovEMaxValInColOfMatSEQ::LuchnilkovEMaxValInColOfMatSEQ(const InType &in) 
-    : matrix_(in) {
+LuchnilkovEMaxValInColOfMatSEQ::LuchnilkovEMaxValInColOfMatSEQ(const InType &in) : matrix_(in) {
   SetTypeOfTask(GetStaticTypeOfTask());
   GetInput() = in;
   result_.clear();
