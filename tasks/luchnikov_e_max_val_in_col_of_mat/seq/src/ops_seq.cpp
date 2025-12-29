@@ -1,70 +1,64 @@
-#include "luchnikov_e_max_val_in_col_of_mat/seq/include/ops_seq.hpp"
+#include "urin_o_max_val_in_col_of_mat/seq/include/ops_seq.hpp"
 
 #include <algorithm>
 #include <cstddef>
-#include <limits>
 #include <vector>
 
-namespace luchnikov_e_max_val_in_col_of_mat {
+namespace urin_o_max_val_in_col_of_mat {
 
-LuchnilkovEMaxValInColOfMatSEQ::LuchnilkovEMaxValInColOfMatSEQ(const InType &in) : matrix_(in) {
+UrinOMaxValInColOfMatSeq::UrinOMaxValInColOfMatSeq(const InType &in) {
   SetTypeOfTask(GetStaticTypeOfTask());
-  GetInput() = in;
-  result_.clear();
-}
-
-bool LuchnilkovEMaxValInColOfMatSEQ::ValidationImpl() {
-  const auto &matrix = GetInput();
-
-  if (matrix.empty()) {
-    return false;
+  if (!in.empty()) {
+    GetInput() = in;
+  } else {
+    GetInput() = InType();
+    GetOutput() = OutType{};
   }
 
-  std::size_t cols = matrix[0].size();
-  for (const auto &row : matrix) {
-    if (row.size() != cols) {
+  bool UrinOMaxValInColOfMatSeq::ValidationImpl() {
+    const auto &matrix = GetInput();
+
+    if (matrix.empty() || matrix[0].empty()) {
       return false;
     }
+
+    size_t cols = matrix[0].size();
+    return std::ranges::all_of(matrix, [cols](const auto &row) { return row.size() == cols; });
   }
 
-  return GetOutput().empty();
-}
-
-bool LuchnilkovEMaxValInColOfMatSEQ::PreProcessingImpl() {
-  const auto &matrix = GetInput();
-
-  if (!matrix.empty()) {
-    std::size_t cols = matrix[0].size();
-    result_.assign(cols, std::numeric_limits<int>::min());
+  bool UrinOMaxValInColOfMatSeq::PreProcessingImpl() {
+    return true;
   }
 
-  return true;
-}
+  bool UrinOMaxValInColOfMatSeq::RunImpl() {
+    const auto &matrix = GetInput();
 
-bool LuchnilkovEMaxValInColOfMatSEQ::RunImpl() {
-  const auto &matrix = GetInput();
-
-  if (matrix.empty()) {
-    return false;
-  }
-
-  std::size_t rows = matrix.size();
-  std::size_t cols = matrix[0].size();
-
-  for (std::size_t j = 0; j < cols; ++j) {
-    int max_val = std::numeric_limits<int>::min();
-    for (std::size_t i = 0; i < rows; ++i) {
-      max_val = std::max(matrix[i][j], max_val);
+    if (matrix.empty() || matrix[0].empty()) {
+      GetOutput() = OutType();
+      return false;
     }
-    result_[j] = max_val;
+
+    size_t rows = matrix.size();
+    size_t cols = matrix[0].size();
+
+    OutType column_maxima(cols);
+
+    for (size_t col = 0; col < cols; ++col) {
+      int max_val = matrix[0][col];
+
+      for (size_t row = 1; row < rows; ++row) {
+        max_val = std::max(matrix[row][col], max_val);
+      }
+
+      column_maxima[col] = max_val;
+    }
+
+    GetOutput() = column_maxima;
+    return true;
   }
 
-  return true;
-}
+  bool UrinOMaxValInColOfMatSeq::PostProcessingImpl() {
+    return !GetOutput().empty();
+  }
 
-bool LuchnilkovEMaxValInColOfMatSEQ::PostProcessingImpl() {
-  GetOutput() = result_;
-  return !result_.empty();
-}
-
-}  // namespace luchnikov_e_max_val_in_col_of_mat
+}  // namespace urin_o_max_val_in_col_of_mat

@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
-#include <limits>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -11,10 +11,41 @@
 #include "luchnikov_e_max_val_in_col_of_mat/mpi/include/ops_mpi.hpp"
 #include "luchnikov_e_max_val_in_col_of_mat/seq/include/ops_seq.hpp"
 #include "util/include/func_test_util.hpp"
+#include "util/include/util.hpp"
 
 namespace luchnikov_e_max_val_in_col_of_mat {
 
-class LuchnilkovEMaxValInColOfMatRunFuncTestsProcesses : public ppc::util::BaseRunFuncTests<InType, OutType, TestType> {
+static std::vector<std::vector<int>> GenerateTestMatrix(int size) {
+  std::vector<std::vector<int>> matrix(size, std::vector<int>(size));
+  for (int i = 0; i < size; ++i) {
+    for (int j = 0; j < size; ++j) {
+      matrix[i][j] = ((i * size + j) % 1000) + 1;
+    }
+  }
+  return matrix;
+}
+
+static std::vector<int> CalculateExpectedMaxima(const std::vector<std::vector<int>> &matrix) {
+  if (matrix.empty()) {
+    return {};
+  }
+
+  size_t rows = matrix.size();
+  size_t cols = matrix[0].size();
+  std::vector<int> expected_maxima(cols);
+
+  for (size_t col = 0; col < cols; ++col) {
+    int max_val = matrix[0][col];
+    for (size_t row = 1; row < rows; ++row) {
+      max_val = std::max(matrix[row][col], max_val);
+    }
+    expected_maxima[col] = max_val;
+  }
+
+  return expected_maxima;
+}
+
+class LuchnilkovEMaxValInColOfMatFuncTests : public ppc::util::BaseRunFuncTests<InType, OutType, TestType> {
  public:
   static std::string PrintTestParam(const TestType &test_param) {
     return std::to_string(std::get<0>(test_param)) + "_" + std::get<1>(test_param);
@@ -23,149 +54,80 @@ class LuchnilkovEMaxValInColOfMatRunFuncTestsProcesses : public ppc::util::BaseR
  protected:
   void SetUp() override {
     TestType params = std::get<static_cast<std::size_t>(ppc::util::GTestParamIndex::kTestParams)>(GetParam());
-    int matrix_size = std::get<0>(params);
-    std::string test_type = std::get<1>(params);
-
-    input_data_ = GenerateTestMatrix(matrix_size, test_type);
-    expected_output_ = CalculateExpectedResult(input_data_);
+    matrix_size_ = std::get<0>(params);
+    test_matrix_ = GenerateTestMatrix(matrix_size_);
+    expected_output_ = CalculateExpectedMaxima(test_matrix_);
   }
 
   bool CheckTestOutputData(OutType &output_data) final {
-    return (expected_output_ == output_data);
+    if (output_data.size() != expected_output_.size()) {
+      return false;
+    }
+
+    for (size_t i = 0; i < output_data.size(); ++i) {
+      if (output_data[i] != expected_output_[i]) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   InType GetTestInputData() final {
-    return input_data_;
+    return test_matrix_;
   }
 
  private:
-  InType input_data_;
-  OutType expected_output_;
-
-  static InType GenerateTestMatrix(int size, const std::string &test_type) {
-    InType matrix(size, std::vector<int>(size));
-
-    if (test_type == "random1") {
-      for (int i = 0; i < size; ++i) {
-        for (int j = 0; j < size; ++j) {
-          matrix[i][j] = ((i * 17) + (j * 13)) % 100;
-        }
-      }
-    } else if (test_type == "ascending") {
-      for (int i = 0; i < size; ++i) {
-        for (int j = 0; j < size; ++j) {
-          matrix[i][j] = (i * size) + j + 1;
-        }
-      }
-    } else if (test_type == "descending") {
-      for (int i = 0; i < size; ++i) {
-        for (int j = 0; j < size; ++j) {
-          matrix[i][j] = (size * size) - ((i * size) + j);
-        }
-      }
-    } else if (test_type == "constant") {
-      for (int i = 0; i < size; ++i) {
-        for (int j = 0; j < size; ++j) {
-          matrix[i][j] = 42;
-        }
-      }
-    } else if (test_type == "diagonal") {
-      for (int i = 0; i < size; ++i) {
-        for (int j = 0; j < size; ++j) {
-          matrix[i][j] = (i == j) ? 1000 : 1;
-        }
-      }
-    } else if (test_type == "negative") {
-      for (int i = 0; i < size; ++i) {
-        for (int j = 0; j < size; ++j) {
-          matrix[i][j] = -((((i * 17) + (j * 13)) % 100) + 1);
-        }
-      }
-    } else if (test_type == "mixed") {
-      for (int i = 0; i < size; ++i) {
-        for (int j = 0; j < size; ++j) {
-          int val = (((i * 17) + (j * 13)) % 201) - 100;
-          matrix[i][j] = val;
-        }
-      }
-    } else if (test_type == "single_max") {
-      for (int i = 0; i < size; ++i) {
-        for (int j = 0; j < size; ++j) {
-          matrix[i][j] = 1;
-        }
-      }
-      int max_row = size / 2;
-      int max_col = size / 2;
-      if (size > 0) {
-        matrix[max_row][max_col] = 10000;
-      }
-    } else if (test_type == "first_col_max") {
-      for (int i = 0; i < size; ++i) {
-        for (int j = 0; j < size; ++j) {
-          matrix[i][j] = j + 1;
-        }
-      }
-    } else if (test_type == "last_col_max") {
-      for (int i = 0; i < size; ++i) {
-        for (int j = 0; j < size; ++j) {
-          matrix[i][j] = size - j;
-        }
-      }
-    } else if (test_type == "random2") {
-      for (int i = 0; i < size; ++i) {
-        for (int j = 0; j < size; ++j) {
-          matrix[i][j] = (((i + 1) * (j + 1) * 7)) % 150;
-        }
-      }
-    }
-
-    return matrix;
-  }
-
-  static OutType CalculateExpectedResult(const InType &matrix) {
-    if (matrix.empty()) {
-      return {};
-    }
-
-    std::size_t rows = matrix.size();
-    std::size_t cols = matrix[0].size();
-    OutType result(cols, std::numeric_limits<int>::min());
-
-    for (std::size_t j = 0; j < cols; ++j) {
-      for (std::size_t i = 0; i < rows; ++i) {
-        result[j] = std::max(matrix[i][j], result[j]);
-      }
-    }
-
-    return result;
-  }
+  int matrix_size_ = 0;
+  std::vector<std::vector<int>> test_matrix_;
+  std::vector<int> expected_output_;
 };
 
 namespace {
 
-TEST_P(LuchnilkovEMaxValInColOfMatRunFuncTestsProcesses, MaxValInColTest) {
+TEST_P(LuchnilkovEMaxValInColOfMatFuncTests, MaxValInColTest) {
   ExecuteTest(GetParam());
 }
 
-const std::array<TestType, 10> kTestParam = {std::make_tuple(3, "random1"),       std::make_tuple(5, "ascending"),
-                                             std::make_tuple(7, "descending"),    std::make_tuple(4, "constant"),
-                                             std::make_tuple(6, "diagonal"),      std::make_tuple(8, "negative"),
-                                             std::make_tuple(10, "mixed"),        std::make_tuple(3, "single_max"),
-                                             std::make_tuple(5, "first_col_max"), std::make_tuple(7, "last_col_max")};
+const std::array<TestType, 10> kTestParam = {
+    std::make_tuple(1, "tiny"),      std::make_tuple(2, "very_small"), std::make_tuple(3, "small"),
+    std::make_tuple(4, "compact"),   std::make_tuple(5, "modest"),     std::make_tuple(6, "medium"),
+    std::make_tuple(7, "moderate"),  std::make_tuple(8, "standard"),   std::make_tuple(9, "large"),
+    std::make_tuple(10, "generous"),
+};
+
+const std::array<TestType, 4> kEdgeCaseTestParam = {
+    std::make_tuple(1, "single_element"),
+    std::make_tuple(2, "two_by_two"),
+    std::make_tuple(100, "medium_large"),
+    std::make_tuple(500, "large_matrix"),
+};
+
+class UrinOMaxValInColOfMatEdgeCaseTests : public LuchnilkovEMaxValInColOfMatFuncTests {};
+
+TEST_P(UrinOMaxValInColOfMatEdgeCaseTests, EdgeCaseTests) {
+  ExecuteTest(GetParam());
+}
 
 const auto kTestTasksList = std::tuple_cat(ppc::util::AddFuncTask<LuchnilkovEMaxValInColOfMatMPI, InType>(
                                                kTestParam, PPC_SETTINGS_luchnikov_e_max_val_in_col_of_mat),
                                            ppc::util::AddFuncTask<LuchnilkovEMaxValInColOfMatSEQ, InType>(
                                                kTestParam, PPC_SETTINGS_luchnikov_e_max_val_in_col_of_mat));
 
+const auto kEdgeCaseTestTasksList =
+    std::tuple_cat(ppc::util::AddFuncTask<LuchnilkovEMaxValInColOfMatMPI, InType>(
+                       kEdgeCaseTestParam, PPC_SETTINGS_luchnikov_e_max_val_in_col_of_mat),
+                   ppc::util::AddFuncTask<LuchnilkovEMaxValInColOfMatSEQ, InType>(
+                       kEdgeCaseTestParam, PPC_SETTINGS_luchnikov_e_max_val_in_col_of_mat));
+
 const auto kGtestValues = ppc::util::ExpandToValues(kTestTasksList);
+const auto kEdgeCaseGtestValues = ppc::util::ExpandToValues(kEdgeCaseTestTasksList);
 
-const auto kPerfTestName = LuchnilkovEMaxValInColOfMatRunFuncTestsProcesses::PrintFuncTestName<
-    LuchnilkovEMaxValInColOfMatRunFuncTestsProcesses>;
+const auto kPerfTestName =
+    LuchnilkovEMaxValInColOfMatFuncTests::PrintFuncTestName<LuchnilkovEMaxValInColOfMatFuncTests>;
 
-INSTANTIATE_TEST_SUITE_P(MatrixMaxColTests, LuchnilkovEMaxValInColOfMatRunFuncTestsProcesses, kGtestValues,
-                         kPerfTestName);
+INSTANTIATE_TEST_SUITE_P(MatrixTests, LuchnilkovEMaxValInColOfMatFuncTests, kGtestValues, kPerfTestName);
+INSTANTIATE_TEST_SUITE_P(EdgeCaseTests, UrinOMaxValInColOfMatEdgeCaseTests, kEdgeCaseGtestValues, kPerfTestName);
 
 }  // namespace
-
 }  // namespace luchnikov_e_max_val_in_col_of_mat

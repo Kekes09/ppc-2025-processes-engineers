@@ -1,110 +1,169 @@
-#include "luchnikov_e_max_val_in_col_of_mat/mpi/include/ops_mpi.hpp"
+#include "urin_o_max_val_in_col_of_mat/mpi/include/ops_mpi.hpp"
 
 #include <mpi.h>
 
 #include <algorithm>
 #include <cstddef>
-#include <limits>
+#include <utility>
 #include <vector>
 
-namespace luchnikov_e_max_val_in_col_of_mat {
+namespace urin_o_max_val_in_col_of_mat {
 
-LuchnilkovEMaxValInColOfMatMPI::LuchnilkovEMaxValInColOfMatMPI(const InType &in) : matrix_(in) {
+LuchnilkovEMaxValInColOfMatMPI::LuchnilkovEMaxValInColOfMatMPI(const InType &in) {
   SetTypeOfTask(GetStaticTypeOfTask());
-  GetInput() = in;
-  result_.clear();
+  if (!in.empty()) {
+    GetInput() = in;
+  } else {
+    GetInput() = InType();
+  }
+  GetOutput() = std::vector<int>();
 }
 
 bool LuchnilkovEMaxValInColOfMatMPI::ValidationImpl() {
-  const auto &matrix = GetInput();
+  int rank = 0;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  if (matrix.empty()) {
-    return false;
-  }
+  bool is_valid = false;
+  int rows = 0;
+  int cols = 0;
 
-  std::size_t cols = matrix[0].size();
-  for (const auto &row : matrix) {
-    if (row.size() != cols) {
-      return false;
+  if (rank == 0) {
+    const auto &matrix = this->GetInput();
+    is_valid = !matrix.empty() && !matrix[0].empty();
+    if (is_valid) {
+      rows = static_cast<int>(matrix.size());
+      cols = static_cast<int>(matrix[0].size());
+      for (const auto &row : matrix) {
+        if (row.size() != static_cast<size_t>(cols)) {
+          is_valid = false;
+          break;
+        }
+      }
     }
   }
 
-  return GetOutput().empty();
+  MPI_Bcast(&is_valid, 1, MPI_C_BOOL, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&rows, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&cols, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+  return is_valid;
 }
 
 bool LuchnilkovEMaxValInColOfMatMPI::PreProcessingImpl() {
-  const auto &matrix = GetInput();
-
-  if (!matrix.empty()) {
-    std::size_t cols = matrix[0].size();
-    result_.assign(cols, std::numeric_limits<int>::min());
-  }
-
   return true;
 }
 
 bool LuchnilkovEMaxValInColOfMatMPI::RunImpl() {
-  const auto &matrix = GetInput();
-
-  if (matrix.empty()) {
-    return false;
-  }
-
   int rank = 0;
   int size = 0;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-  int rows = static_cast<int>(matrix.size());
-  int cols = static_cast<int>(matrix[0].size());
-
-  int rows_per_process = rows / size;
-  int remainder = rows % size;
-
-  int start_row = rank * rows_per_process + (rank < remainder ? rank : remainder);
-  int end_row = start_row + rows_per_process + (rank < remainder ? 1 : 0);
-
-  if (end_row > rows) {
-    end_row = rows;
+  auto [rows, cols] = GetMatrixDimensions(rank);
+  if (rows == 0 || cols == 0) {
+    GetOutput() = OutType();
+    return true;
   }
 
-  std::vector<int> local_max(cols, std::numeric_limits<int>::min());
+  std::vector<std::vector<int>> local_matrix(rows, std::vector<int>(cols));
+  DistributeMatrixData(rank, rows, cols, local_matrix);
+  auto column_dist = CalculateColumnDistribution(rank, size, cols);
+  int start_col = column_dist.first;
+  int local_cols_count = column_dist.second;
 
-  for (int i = start_row; i < end_row && i < rows; ++i) {
-    for (int j = 0; j < cols; ++j) {
-      local_max[j] = std::max(matrix[i][j], local_max[j]);
-    }
-  }
+  auto local_maxima = ComputeLocalMaxima(local_matrix, rows, start_col, local_cols_count);
 
-  if (rank == 0) {
-    result_ = local_max;
-
-    for (int proc = 1; proc < size; ++proc) {
-      std::vector<int> other_max(cols);
-      MPI_Recv(other_max.data(), cols, MPI_INT, proc, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
-      for (int j = 0; j < cols; ++j) {
-        result_[j] = std::max(other_max[j], result_[j]);
-      }
-    }
-
-    for (int proc = 1; proc < size; ++proc) {
-      MPI_Send(result_.data(), cols, MPI_INT, proc, 1, MPI_COMM_WORLD);
-    }
-  } else {
-    MPI_Send(local_max.data(), cols, MPI_INT, 0, 0, MPI_COMM_WORLD);
-
-    result_.resize(cols);
-    MPI_Recv(result_.data(), cols, MPI_INT, 0, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-  }
-
-  MPI_Barrier(MPI_COMM_WORLD);
+  GetOutput() = GatherResults(local_maxima, size, cols);
   return true;
 }
 
-bool LuchnilkovEMaxValInColOfMatMPI::PostProcessingImpl() {
-  GetOutput() = result_;
-  return !result_.empty();
+std::pair<int, int> LuchnilkovEMaxValInColOfMatMPI::GetMatrixDimensions(int rank) {
+  int rows = 0;
+  int cols = 0;
+
+  if (rank == 0) {
+    const auto &matrix = this->GetInput();
+    if (matrix.empty() || matrix[0].empty()) {
+      rows = 0;
+      cols = 0;
+    } else {
+      rows = static_cast<int>(matrix.size());
+      cols = static_cast<int>(matrix[0].size());
+    }
+  }
+
+  MPI_Bcast(&rows, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&cols, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+  return std::make_pair(rows, cols);
 }
 
-}  // namespace luchnikov_e_max_val_in_col_of_mat
+void LuchnilkovEMaxValInColOfMatMPI::DistributeMatrixData(int rank, int rows, int cols,
+                                                          std::vector<std::vector<int>> &local_matrix) {
+  if (rank == 0) {
+    const auto &source_matrix = this->GetInput();
+    for (int i = 0; i < rows; ++i) {
+      std::copy(source_matrix[i].begin(), source_matrix[i].end(), local_matrix[i].begin());
+      MPI_Bcast(local_matrix[i].data(), cols, MPI_INT, 0, MPI_COMM_WORLD);
+    }
+  } else {
+    for (int i = 0; i < rows; ++i) {
+      MPI_Bcast(local_matrix[i].data(), cols, MPI_INT, 0, MPI_COMM_WORLD);
+    }
+  }
+}
+
+std::pair<int, int> LuchnilkovEMaxValInColOfMatMPI::CalculateColumnDistribution(int rank, int size, int cols) {
+  int base_cols_per_process = cols / size;
+  int remainder = cols % size;
+
+  int start_col = 0;
+  for (int i = 0; i < rank; ++i) {
+    start_col += base_cols_per_process + (i < remainder ? 1 : 0);
+  }
+
+  int local_cols_count = base_cols_per_process + (rank < remainder ? 1 : 0);
+  return std::make_pair(start_col, local_cols_count);
+}
+
+std::vector<int> LuchnilkovEMaxValInColOfMatMPI::ComputeLocalMaxima(const std::vector<std::vector<int>> &matrix,
+                                                                    int rows, int start_col, int col_count) {
+  std::vector<int> maxima(col_count);
+  for (int i = 0; i < col_count; ++i) {
+    int global_col = start_col + i;
+    int max_val = matrix[0][global_col];
+    for (int row = 1; row < rows; ++row) {
+      max_val = std::max(matrix[row][global_col], max_val);
+    }
+    maxima[i] = max_val;
+  }
+  return maxima;
+}
+
+LuchnilkovEMaxValInColOfMatMPI::OutType LuchnilkovEMaxValInColOfMatMPI::GatherResults(
+    const std::vector<int> &local_maxima, int size, int cols) {
+  std::vector<int> counts(size);
+  std::vector<int> displs(size);
+  int local_count = static_cast<int>(local_maxima.size());
+
+  MPI_Allgather(&local_count, 1, MPI_INT, counts.data(), 1, MPI_INT, MPI_COMM_WORLD);
+
+  displs[0] = 0;
+  for (int i = 1; i < size; ++i) {
+    displs[i] = displs[i - 1] + counts[i - 1];
+  }
+
+  OutType result(cols);
+  MPI_Gatherv(local_maxima.data(), local_count, MPI_INT, result.data(), counts.data(), displs.data(), MPI_INT, 0,
+              MPI_COMM_WORLD);
+
+  MPI_Bcast(result.data(), cols, MPI_INT, 0, MPI_COMM_WORLD);
+  return result;
+}
+
+bool LuchnilkovEMaxValInColOfMatMPI::PostProcessingImpl() {
+  return !GetOutput().empty();
+}
+
+}  // namespace urin_o_max_val_in_col_of_mat
+//

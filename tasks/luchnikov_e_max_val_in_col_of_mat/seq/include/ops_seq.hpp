@@ -12,6 +12,10 @@ class LuchnilkovEMaxValInColOfMatSEQ : public BaseTask {
   static constexpr ppc::task::TypeOfTask GetStaticTypeOfTask() {
     return ppc::task::TypeOfTask::kSEQ;
   }
+
+  using InType = std::vector<std::vector<int>>;
+  using OutType = std::vector<int>;
+
   explicit LuchnilkovEMaxValInColOfMatSEQ(const InType &in);
 
  private:
@@ -19,9 +23,6 @@ class LuchnilkovEMaxValInColOfMatSEQ : public BaseTask {
   bool PreProcessingImpl() override;
   bool RunImpl() override;
   bool PostProcessingImpl() override;
-
-  std::vector<std::vector<int>> matrix_;
-  std::vector<int> result_;
 };
 
 }  // namespace luchnikov_e_max_val_in_col_of_mat
