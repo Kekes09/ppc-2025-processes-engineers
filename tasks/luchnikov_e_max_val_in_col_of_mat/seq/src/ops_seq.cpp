@@ -62,3 +62,4 @@ LuchnilkovEMaxValInColOfMatSEQ::LuchnilkovEMaxValInColOfMatSEQ(const InType &in)
   }
 
 }  // namespace luchnikov_e_max_val_in_col_of_mat
+}  // namespace luchnikov_e_max_val_in_col_of_mat
